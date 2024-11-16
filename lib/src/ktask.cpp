@@ -70,6 +70,7 @@ struct Queue::Impl {
 		for (auto& task : m_queue) {
 			task->m_status = TaskStatus::Dropped;
 			task->m_completed.count_down();
+			task->drop();
 		}
 		m_queue.clear();
 	}

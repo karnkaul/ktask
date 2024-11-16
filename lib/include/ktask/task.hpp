@@ -1,4 +1,5 @@
 #pragma once
+#include <ktask/build_version.hpp>
 #include <ktask/task_id.hpp>
 #include <ktask/task_status.hpp>
 #include <atomic>
@@ -19,6 +20,7 @@ class Task {
 	auto operator=(Task&&) -> Task& = delete;
 
 	virtual void execute() = 0;
+	virtual void drop() {}
 
 	[[nodiscard]] auto get_id() const -> Id { return m_id; }
 	[[nodiscard]] auto get_status() const -> Status { return m_status; }
