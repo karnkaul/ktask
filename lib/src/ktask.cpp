@@ -70,6 +70,7 @@ struct Queue::Impl {
 		for (auto& task : m_queue) {
 			task->m_status = TaskStatus::Dropped;
 			task->m_completed.count_down();
+			task->drop();
 		}
 		m_queue.clear();
 	}
@@ -135,6 +136,7 @@ void Queue::Deleter::operator()(Impl* ptr) const noexcept { std::default_delete<
 auto Queue::get_max_threads() -> ThreadCount { return ThreadCount(std::thread::hardware_concurrency()); }
 
 Queue::Queue(CreateInfo create_info) {
+	if (create_info.thread_count == ThreadCount::Default) { create_info.thread_count = ThreadCount(get_max_threads()); }
 	create_info.thread_count = std::clamp(create_info.thread_count, ThreadCount::Minimum, get_max_threads());
 	m_impl.reset(new Impl(create_info)); // NOLINT(cppcoreguidelines-owning-memory)
 }

@@ -1,6 +1,6 @@
 #pragma once
+#include <ktask/fwd.hpp>
 #include <ktask/task.hpp>
-#include <cstdint>
 #include <memory>
 
 namespace ktask {

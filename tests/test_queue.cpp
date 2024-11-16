@@ -67,10 +67,12 @@ TEST(queue_task_wait) {
 	auto task = std::make_shared<WaitTask>(200ms);
 	queue.enqueue(task);
 	EXPECT(task->get_status() == TaskStatus::Queued);
+	EXPECT(task->is_busy());
 	queue.resume();
 	task->wait();
 	EXPECT(WaitTask::s_executed == 1);
 	EXPECT(task->get_status() == TaskStatus::Completed);
+	EXPECT(!task->is_busy());
 	EXPECT(queue.is_empty());
 }
 
@@ -80,6 +82,7 @@ TEST(queue_task_drop) {
 	WaitTask::s_executed = 0;
 	auto task = std::make_shared<WaitTask>(10s);
 	queue.enqueue(task);
+	EXPECT(task->is_busy());
 	queue.drop_enqueued();
 	EXPECT(WaitTask::s_executed == 0);
 	EXPECT(task->get_status() == TaskStatus::Dropped);
