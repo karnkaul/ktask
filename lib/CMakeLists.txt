@@ -18,8 +18,13 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 )
 
 target_sources(${PROJECT_NAME} PUBLIC FILE_SET HEADERS BASE_DIRS include FILES
-  include/ktask/task.hpp
+  include/ktask/queue_create_info.hpp
+  include/ktask/queue_fwd.hpp
   include/ktask/queue.hpp
+  include/ktask/task_fwd.hpp
+  include/ktask/task_id.hpp
+  include/ktask/task_status.hpp
+  include/ktask/task.hpp
 )
 
 target_sources(${PROJECT_NAME} PRIVATE

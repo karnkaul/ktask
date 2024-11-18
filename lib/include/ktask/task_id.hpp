@@ -1,5 +1,5 @@
 #pragma once
-#include <ktask/fwd.hpp>
+#include <cstdint>
 
 namespace ktask {
 enum struct TaskId : std::uint64_t { None = 0 };
