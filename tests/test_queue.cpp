@@ -1,5 +1,6 @@
 #include <ktask/queue.hpp>
 #include <ktest/ktest.hpp>
+#include <array>
 #include <random>
 #include <thread>
 
