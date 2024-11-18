@@ -1,5 +1,6 @@
 #pragma once
 #include <ktask/build_version.hpp>
+#include <ktask/task_fwd.hpp>
 #include <ktask/task_id.hpp>
 #include <ktask/task_status.hpp>
 #include <atomic>

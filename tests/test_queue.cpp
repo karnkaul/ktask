@@ -35,7 +35,8 @@ TEST(queue_drain_and_wait) {
 	auto queue = create_queue();
 	queue.pause();
 	static constexpr auto run_count_v = 3;
-	for (int i = 0; i < run_count_v; ++i) { queue.enqueue(std::make_shared<WaitTask>()); }
+	auto tasks = std::array<WaitTask, run_count_v>{};
+	for (auto& task : tasks) { queue.enqueue(task); }
 	WaitTask::s_executed = 0;
 	EXPECT(queue.enqueued_count() == std::size_t(run_count_v));
 	queue.drain_and_wait();
@@ -49,12 +50,19 @@ TEST(queue_drain_restart) {
 	auto queue = create_queue();
 	static constexpr auto run_count_v = 3;
 
-	queue.pause();
-	for (int i = 0; i < run_count_v; ++i) { queue.enqueue(std::make_shared<WaitTask>()); }
-	queue.drain_and_wait();
+	{
+		auto tasks = std::array<WaitTask, run_count_v>{};
+		queue.pause();
+		for (auto& task : tasks) { queue.enqueue(task); }
+		queue.drain_and_wait();
+	}
 
+	auto tasks = std::array<WaitTask, run_count_v>{};
+	auto to_enqueue = std::array<Task*, run_count_v>{};
+	// NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index)
+	for (std::size_t i = 0; i < run_count_v; ++i) { to_enqueue[i] = &tasks[i]; }
 	WaitTask::s_executed = 0;
-	for (int i = 0; i < run_count_v; ++i) { queue.enqueue(std::make_shared<WaitTask>()); }
+	queue.enqueue(to_enqueue);
 	queue.drain_and_wait();
 	EXPECT(queue.is_empty());
 	EXPECT(WaitTask::s_executed == 3);
@@ -64,15 +72,15 @@ TEST(queue_task_wait) {
 	auto queue = create_queue();
 	queue.pause();
 	WaitTask::s_executed = 0;
-	auto task = std::make_shared<WaitTask>(200ms);
+	auto task = WaitTask{200ms};
 	queue.enqueue(task);
-	EXPECT(task->get_status() == TaskStatus::Queued);
-	EXPECT(task->is_busy());
+	EXPECT(task.get_status() == TaskStatus::Queued);
+	EXPECT(task.is_busy());
 	queue.resume();
-	task->wait();
+	task.wait();
 	EXPECT(WaitTask::s_executed == 1);
-	EXPECT(task->get_status() == TaskStatus::Completed);
-	EXPECT(!task->is_busy());
+	EXPECT(task.get_status() == TaskStatus::Completed);
+	EXPECT(!task.is_busy());
 	EXPECT(queue.is_empty());
 }
 
@@ -80,12 +88,12 @@ TEST(queue_task_drop) {
 	auto queue = create_queue();
 	queue.pause();
 	WaitTask::s_executed = 0;
-	auto task = std::make_shared<WaitTask>(10s);
+	auto task = WaitTask{10s};
 	queue.enqueue(task);
-	EXPECT(task->is_busy());
+	EXPECT(task.is_busy());
 	queue.drop_enqueued();
 	EXPECT(WaitTask::s_executed == 0);
-	EXPECT(task->get_status() == TaskStatus::Dropped);
+	EXPECT(task.get_status() == TaskStatus::Dropped);
 	EXPECT(queue.is_empty());
 }
 } // namespace

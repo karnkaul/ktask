@@ -1,6 +1,7 @@
 #include <ktask/queue.hpp>
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <cassert>
 #include <condition_variable>
@@ -30,20 +31,27 @@ struct Queue::Impl {
 		return m_queue.size();
 	}
 
-	[[nodiscard]] auto can_enqueue() const -> bool {
+	[[nodiscard]] auto can_enqueue(std::size_t const count) const -> bool {
 		if (m_draining) { return false; }
 		if (m_create_info.max_elements == ElementCount::Unbounded) { return true; }
-		return enqueued_count() < std::size_t(m_create_info.max_elements);
+		return enqueued_count() + count < std::size_t(m_create_info.max_elements);
 	}
 
-	auto enqueue(std::shared_ptr<Task> task) -> bool {
-		if (!can_enqueue()) { return false; }
-		task->m_id = TaskId{++m_prev_id};
-		task->m_status = TaskStatus::Queued;
+	auto enqueue(std::span<Task* const> tasks) -> bool {
+		if (tasks.empty()) { return true; }
+		if (!can_enqueue(tasks.size())) { return false; }
+		for (auto* task : tasks) {
+			task->m_id = TaskId{++m_prev_id};
+			task->m_status = TaskStatus::Queued;
+		}
 		auto lock = std::unique_lock{m_mutex};
-		m_queue.push_back(std::move(task));
+		m_queue.insert(m_queue.end(), tasks.begin(), tasks.end());
 		lock.unlock();
-		m_work_cv.notify_one();
+		if (tasks.size() > 1) {
+			m_work_cv.notify_all();
+		} else {
+			m_work_cv.notify_one();
+		}
 		return true;
 	}
 
@@ -100,7 +108,7 @@ struct Queue::Impl {
 			auto lock = std::unique_lock{m_mutex};
 			if (!m_work_cv.wait(lock, s, [this] { return !m_paused && !m_queue.empty(); })) { return; }
 			if (s.stop_requested()) { return; }
-			auto task = std::move(m_queue.front());
+			auto* task = m_queue.front();
 			m_queue.pop_front();
 			auto const observed_empty = m_queue.empty();
 			lock.unlock();
@@ -125,7 +133,7 @@ struct Queue::Impl {
 	std::atomic_bool m_paused{};
 	std::atomic_bool m_draining{};
 
-	std::deque<std::shared_ptr<Task>> m_queue{};
+	std::deque<Task*> m_queue{};
 	std::vector<std::jthread> m_threads{};
 
 	std::underlying_type_t<TaskId> m_prev_id{};
@@ -151,14 +159,19 @@ auto Queue::enqueued_count() const -> std::size_t {
 	return m_impl->enqueued_count();
 }
 
-auto Queue::can_enqueue() const -> bool {
+auto Queue::can_enqueue(std::size_t const count) const -> bool {
 	if (!m_impl) { return false; }
-	return m_impl->can_enqueue();
+	return m_impl->can_enqueue(count);
 }
 
-auto Queue::enqueue(std::shared_ptr<Task> task) -> bool {
-	if (!task || !m_impl) { return false; }
-	return m_impl->enqueue(std::move(task));
+auto Queue::enqueue(Task& task) -> bool {
+	auto const tasks = std::array{&task};
+	return enqueue(tasks);
+}
+
+auto Queue::enqueue(std::span<Task* const> tasks) -> bool {
+	if (!m_impl) { return false; }
+	return m_impl->enqueue(tasks);
 }
 
 void Queue::pause() {

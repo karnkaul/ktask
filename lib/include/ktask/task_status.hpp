@@ -1,5 +1,5 @@
 #pragma once
-#include <ktask/fwd.hpp>
+#include <ktask/task_fwd.hpp>
 
 namespace ktask {
 enum class TaskStatus : int { None, Queued, Dropped, Executing, Completed };

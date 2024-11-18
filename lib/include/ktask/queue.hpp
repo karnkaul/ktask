@@ -1,17 +1,11 @@
 #pragma once
-#include <ktask/fwd.hpp>
+#include <ktask/queue_create_info.hpp>
+#include <ktask/queue_fwd.hpp>
 #include <ktask/task.hpp>
 #include <memory>
+#include <span>
 
 namespace ktask {
-enum struct ThreadCount : std::uint8_t { Default = 0, Minimum = 1 };
-enum struct ElementCount : std::size_t { Unbounded = 0 };
-
-struct QueueCreateInfo {
-	ThreadCount thread_count{ThreadCount::Default};
-	ElementCount max_elements{ElementCount::Unbounded};
-};
-
 class Queue {
   public:
 	using CreateInfo = QueueCreateInfo;
@@ -24,9 +18,10 @@ class Queue {
 	[[nodiscard]] auto max_elements() const -> ElementCount;
 	[[nodiscard]] auto enqueued_count() const -> std::size_t;
 	[[nodiscard]] auto is_empty() const -> bool { return enqueued_count() == 0; }
-	[[nodiscard]] auto can_enqueue() const -> bool;
+	[[nodiscard]] auto can_enqueue(std::size_t count = 1) const -> bool;
 
-	auto enqueue(std::shared_ptr<Task> task) -> bool;
+	auto enqueue(Task& task) -> bool;
+	auto enqueue(std::span<Task* const> tasks) -> bool;
 
 	void pause();
 	void resume();
