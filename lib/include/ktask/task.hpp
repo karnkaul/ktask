@@ -4,7 +4,6 @@
 #include <ktask/task_id.hpp>
 #include <ktask/task_status.hpp>
 #include <atomic>
-#include <latch>
 
 namespace ktask {
 class Task {
@@ -22,16 +21,21 @@ class Task {
 
 	[[nodiscard]] auto get_id() const -> Id { return m_id; }
 	[[nodiscard]] auto get_status() const -> Status { return m_status; }
-	[[nodiscard]] auto is_busy() const -> bool { return m_status != Status::Completed && m_status != Status::Dropped; }
+	[[nodiscard]] auto is_busy() const -> bool { return m_busy; }
 
-	void wait() { m_completed.wait(); }
+	void wait() { m_busy.wait(true); }
+
+  protected:
+	virtual void execute() = 0;
 
   private:
-	virtual void execute() = 0;
-	virtual void drop() {}
+	void do_execute();
+	void do_drop();
+
+	void finalize();
 
 	std::atomic<Status> m_status{};
-	std::latch m_completed{1};
+	std::atomic<bool> m_busy{};
 	Id m_id{Id::None};
 
 	friend class Queue;

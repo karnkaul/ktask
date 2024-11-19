@@ -79,6 +79,7 @@ TEST(queue_task_wait) {
 	EXPECT(task.is_busy());
 	queue.resume();
 	task.wait();
+	task.wait();
 	EXPECT(WaitTask::s_executed == 1);
 	EXPECT(task.get_status() == TaskStatus::Completed);
 	EXPECT(!task.is_busy());
@@ -95,6 +96,33 @@ TEST(queue_task_drop) {
 	queue.drop_enqueued();
 	EXPECT(WaitTask::s_executed == 0);
 	EXPECT(task.get_status() == TaskStatus::Dropped);
+	EXPECT(queue.is_empty());
+}
+
+TEST(queue_task_rerun) {
+	auto queue = create_queue();
+	queue.pause();
+	WaitTask::s_executed = 0;
+	auto task = WaitTask{200ms};
+	queue.enqueue(task);
+	EXPECT(task.get_status() == TaskStatus::Queued);
+	EXPECT(task.is_busy());
+	queue.resume();
+	task.wait();
+	EXPECT(WaitTask::s_executed == 1);
+	EXPECT(task.get_status() == TaskStatus::Completed);
+	EXPECT(!task.is_busy());
+	EXPECT(queue.is_empty());
+
+	queue.pause();
+	queue.enqueue(task);
+	EXPECT(task.get_status() == TaskStatus::Queued);
+	EXPECT(task.is_busy());
+	queue.resume();
+	task.wait();
+	EXPECT(WaitTask::s_executed == 2);
+	EXPECT(task.get_status() == TaskStatus::Completed);
+	EXPECT(!task.is_busy());
 	EXPECT(queue.is_empty());
 }
 } // namespace

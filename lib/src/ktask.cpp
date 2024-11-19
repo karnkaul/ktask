@@ -11,6 +11,28 @@
 #include <vector>
 
 namespace ktask {
+void Task::do_execute() {
+	m_status = Status::Executing;
+	try {
+		execute();
+	} catch (...) {}
+	finalize();
+}
+
+void Task::do_drop() {
+	m_status = TaskStatus::Dropped;
+	finalize();
+}
+
+void Task::finalize() {
+	switch (m_status) {
+	case Status::Executing: m_status = Status::Completed; break;
+	default: break;
+	}
+	m_busy = false;
+	m_busy.notify_all();
+}
+
 struct Queue::Impl {
 	Impl(Impl const&) = delete;
 	Impl(Impl&&) = delete;
@@ -41,8 +63,10 @@ struct Queue::Impl {
 		if (tasks.empty()) { return true; }
 		if (!can_enqueue(tasks.size())) { return false; }
 		for (auto* task : tasks) {
-			task->m_id = TaskId{++m_prev_id};
+			assert(!task->is_busy());
+			if (task->m_id == TaskId::None) { task->m_id = TaskId{++m_prev_id}; }
 			task->m_status = TaskStatus::Queued;
+			task->m_busy = true;
 		}
 		auto lock = std::unique_lock{m_mutex};
 		m_queue.insert(m_queue.end(), tasks.begin(), tasks.end());
@@ -55,9 +79,21 @@ struct Queue::Impl {
 		return true;
 	}
 
+	auto fork_join(std::span<Task* const> tasks) -> TaskStatus {
+		if (tasks.empty()) { return TaskStatus::None; }
+		if (!enqueue(tasks)) { return TaskStatus::Dropped; }
+		auto const got_dropped = [](Task* task) {
+			task->wait();
+			return task->m_status == TaskStatus::Dropped;
+		};
+		if (std::ranges::any_of(tasks, got_dropped)) { return TaskStatus::Dropped; }
+		return TaskStatus::Completed;
+	}
+
 	void pause() { m_paused = true; }
 
 	void resume() {
+		if (!m_paused) { return; }
 		m_paused = false;
 		m_work_cv.notify_all();
 	}
@@ -75,11 +111,7 @@ struct Queue::Impl {
 
 	void drop_enqueued() {
 		auto lock = std::scoped_lock{m_mutex};
-		for (auto& task : m_queue) {
-			task->m_status = TaskStatus::Dropped;
-			task->m_completed.count_down();
-			task->drop();
-		}
+		for (auto* task : m_queue) { task->do_drop(); }
 		m_queue.clear();
 	}
 
@@ -112,18 +144,9 @@ struct Queue::Impl {
 			m_queue.pop_front();
 			auto const observed_empty = m_queue.empty();
 			lock.unlock();
-			execute(*task);
+			task->do_execute();
 			if (observed_empty) { m_empty_cv.notify_one(); }
 		}
-	}
-
-	static void execute(Task& task) {
-		task.m_status = TaskStatus::Executing;
-		try {
-			task.execute();
-		} catch (...) {}
-		task.m_status = TaskStatus::Completed;
-		task.m_completed.count_down();
 	}
 
 	CreateInfo m_create_info{};
@@ -172,6 +195,11 @@ auto Queue::enqueue(Task& task) -> bool {
 auto Queue::enqueue(std::span<Task* const> tasks) -> bool {
 	if (!m_impl) { return false; }
 	return m_impl->enqueue(tasks);
+}
+
+auto Queue::fork_join(std::span<Task* const> tasks) -> TaskStatus {
+	if (!m_impl) { return TaskStatus::None; }
+	return m_impl->fork_join(tasks);
 }
 
 void Queue::pause() {
