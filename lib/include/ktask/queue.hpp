@@ -22,6 +22,7 @@ class Queue {
 
 	auto enqueue(Task& task) -> bool;
 	auto enqueue(std::span<Task* const> tasks) -> bool;
+	auto fork_join(std::span<Task* const> tasks) -> TaskStatus;
 
 	void pause();
 	void resume();
